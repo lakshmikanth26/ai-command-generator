@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Command Generator 🤖</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .chat-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .chat-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .chat-messages {
+            flex: 1;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .help-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 2px solid #667eea;
+            flex-shrink: 0;
+        }
+
+        .chat-history {
+            flex: 1;
+            padding: 0 0 20px 0;
+            min-height: 200px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.bot .message-avatar {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .message-content {
+            background: white;
+            padding: 15px;
+            border-radius: 18px;
+            max-width: 70%;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.bot .message-content {
+            background: white;
+            color: #333;
+        }
+
+        .message-text {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .command-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #495057;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+
+        .execution-result {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #155724;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .execution-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #1e7e34;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .help-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 2px solid #667eea;
+        }
+
+        .help-panel h3 {
+            color: #667eea;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .example-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            border: 1px solid #dee2e6;
+        }
+
+        .example-item:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+
+        /* Command listing styles */
+        .commands-overview {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+
+        .commands-overview h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.2em;
+        }
+
+        .commands-overview p {
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        .command-category {
+            margin-bottom: 25px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .command-category h4 {
+            margin: 0;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            color: #495057;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .command-list {
+            padding: 10px 0;
+        }
+
+        .command-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid #f1f3f4;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .command-item:last-child {
+            border-bottom: none;
+        }
+
+        .command-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .command-example {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .command-description {
+            color: #6c757d;
+            font-size: 0.85em;
+            font-style: italic;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 15px;
+            color: #6c757d;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #6c757d;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                height: 90vh;
+                border-radius: 0;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+            
+            .examples-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="status-text">Connected</span>
+            </div>
+            <h1>🤖 AI Command Generator</h1>
+            <p>Convert natural language to system commands</p>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="help-panel" id="help-panel">
+                <h3>💡 How to use</h3>
+                <p>Type your request in natural language and I'll convert it to a system command.</p>
+                <div class="examples-grid" id="examples-grid">
+                    <!-- Examples will be loaded here -->
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" onclick="clearHistory()">Clear History</button>
+                    <button class="btn btn-primary" id="toggle-help-btn" onclick="toggleHelp()">Hide Help</button>
+                </div>
+            </div>
+            <!-- Floating help button that appears when help is hidden -->
+            <div id="floating-help-btn" style="display: none; text-align: center; margin: 10px 20px; flex-shrink: 0;">
+                <button class="btn btn-success" onclick="toggleHelp()" style="font-size: 16px; padding: 12px 24px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                    💡 Show Help
+                </button>
+            </div>
+            <!-- Chat history container -->
+            <div class="chat-history" id="chat-history">
+                <!-- Messages will be added here -->
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator">
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+            <span>AI is thinking...</span>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="input-group">
+                <input type="text" class="chat-input" id="message-input" placeholder="Type your command here..." onkeypress="handleKeyPress(event)">
+                <button class="send-btn" onclick="sendMessage()" id="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO
+        const socket = io();
+        let helpVisible = true;
+
+        // DOM elements
+        const chatMessages = document.getElementById('chat-messages');
+        const chatHistory = document.getElementById('chat-history');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const statusText = document.getElementById('status-text');
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            statusText.textContent = 'Connected';
+            loadExamples();
+        });
+
+        socket.on('disconnect', () => {
+            statusText.textContent = 'Disconnected';
+        });
+
+        socket.on('bot_response', (data) => {
+            hideTyping();
+            addBotMessage(data);
+        });
+
+        socket.on('error', (data) => {
+            hideTyping();
+            addErrorMessage(data.error);
+        });
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addUserMessage(message);
+            
+            // Clear input
+            messageInput.value = '';
+            
+            // Show typing indicator
+            showTyping();
+            
+            // Send via Socket.IO
+            socket.emit('send_message', { message: message });
+        }
+
+        function addUserMessage(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.innerHTML = `
+                <div class="message-avatar">👤</div>
+                <div class="message-content">
+                    <div class="message-text">${escapeHtml(text)}</div>
+                    <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+                </div>
+            `;
+            chatHistory.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function addBotMessage(data) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            
+            // Check if the message contains HTML content (like command listing)
+            const isHtmlContent = data.message && (
+                data.message.includes('<div') || 
+                data.message.includes('<h3') || 
+                data.message.includes('<h4') ||
+                data.message.includes('<span') ||
+                data.message.includes('<p>') ||
+                data.message.includes('<ul>') ||
+                data.message.includes('<li>')
+            );
+            
+            let content;
+            if (isHtmlContent) {
+                // For HTML content, don't escape it
+                content = `<div class="message-text">${data.message}</div>`;
+            } else {
+                // For regular text, escape it for safety
+                content = `<div class="message-text">${escapeHtml(data.message)}</div>`;
+            }
+            
+            if (data.mapped_command) {
+                // Don't show the raw command for intelligent commands, command listing, or redis listing
+                if (!data.is_intelligent_command && !data.is_command_listing && !data.is_redis_listing) {
+                    content += `<div class="command-display">${escapeHtml(data.mapped_command)}</div>`;
+                }
+                
+                if (data.needs_confirmation) {
+                    if (data.is_redis_listing) {
+                        content += `
+                            <div class="action-buttons">
+                                <button class="btn btn-primary show-redis-commands-btn">
+                                    🔴 Show Redis Commands
+                                </button>
+                                <button class="btn btn-secondary skip-btn">
+                                    ⏭️ Skip
+                                </button>
+                            </div>
+                        `;
+                    } else if (data.is_command_listing) {
+                        content += `
+                            <div class="action-buttons">
+                                <button class="btn btn-primary show-commands-btn">
+                                    📋 Show All Commands
+                                </button>
+                                <button class="btn btn-secondary skip-btn">
+                                    ⏭️ Skip
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        content += `
+                            <div class="action-buttons">
+                                <button class="btn btn-success execute-btn" 
+                                        data-command="${escapeHtml(data.mapped_command)}" 
+                                        data-user-input="${escapeHtml(data.user_input)}">
+                                    ✅ Execute
+                                </button>
+                                <button class="btn btn-secondary skip-btn">
+                                    ⏭️ Skip
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+            }
+            
+            if (data.execution_result) {
+                const resultClass = data.success ? 'execution-result' : 'execution-result execution-error';
+                content += `<div class="${resultClass}">${escapeHtml(data.execution_result)}</div>`;
+            }
+            
+            content += `<div class="timestamp">${new Date().toLocaleTimeString()}</div>`;
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">${content}</div>
+            `;
+            
+            chatHistory.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function addErrorMessage(error) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.innerHTML = `
+                <div class="message-avatar">❌</div>
+                <div class="message-content">
+                    <div class="message-text" style="color: #dc3545;">${escapeHtml(error)}</div>
+                    <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+                </div>
+            `;
+            chatHistory.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function executeCommand(command, userInput) {
+            fetch('/api/execute', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: command,
+                    user_input: userInput
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.type === 'execution_result') {
+                    const resultMessage = data.success ? data.output : data.error;
+                    
+                    // For intelligent commands, show the result directly
+                    if (command.startsWith('python -c')) {
+                        addBotMessage({
+                            message: resultMessage || '✅ Redis sentinel operation completed',
+                            execution_result: null,
+                            success: data.success,
+                            timestamp: data.timestamp
+                        });
+                    } else {
+                        addBotMessage({
+                            message: data.success ? '✅ Command executed successfully!' : '❌ Command failed',
+                            execution_result: resultMessage,
+                            success: data.success,
+                            timestamp: data.timestamp
+                        });
+                    }
+                } else {
+                    addErrorMessage(data.error || 'Execution failed');
+                }
+            })
+            .catch(error => {
+                addErrorMessage('Network error: ' + error.message);
+            });
+        }
+
+        function skipExecution() {
+            addBotMessage({
+                message: '⏭️ Command execution skipped',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function showAllCommands() {
+            fetch('/api/commands')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        addErrorMessage(data.error);
+                        return;
+                    }
+                    
+                    let content = `<div class="commands-overview">
+                        <h3>📋 Available Commands (${data.total_commands} total)</h3>
+                        <p>Here are all the commands organized by category:</p>
+                    </div>`;
+                    
+                    for (const [category, commands] of Object.entries(data.categories)) {
+                        content += `<div class="command-category">
+                            <h4>${category}</h4>
+                            <div class="command-list">`;
+                        
+                        commands.forEach(cmd => {
+                            content += `<div class="command-item" onclick="useExample('${cmd.example}')">
+                                <div class="command-example">${escapeHtml(cmd.example)}</div>
+                                <div class="command-description">${escapeHtml(cmd.description)}</div>
+                            </div>`;
+                        });
+                        
+                        content += `</div></div>`;
+                    }
+                    
+                    addBotMessage({
+                        message: content,
+                        timestamp: new Date().toISOString()
+                    });
+                })
+                .catch(error => {
+                    addErrorMessage('Error loading commands: ' + error.message);
+                });
+        }
+
+        function showRedisCommands() {
+            fetch('/api/commands')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        addErrorMessage(data.error);
+                        return;
+                    }
+                    
+                    // Filter only Redis commands
+                    const redisCommands = data.categories['Redis Operations'] || [];
+                    
+                    let content = `<div class="commands-overview" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+                        <h3>🔴 Redis Commands (${redisCommands.length} total)</h3>
+                        <p>Here are all the Redis-related commands:</p>
+                    </div>`;
+                    
+                    if (redisCommands.length > 0) {
+                        content += `<div class="command-category">
+                            <h4>Redis Operations</h4>
+                            <div class="command-list">`;
+                        
+                        redisCommands.forEach(cmd => {
+                            content += `<div class="command-item" onclick="useExample('${cmd.example}')">
+                                <div class="command-example">${escapeHtml(cmd.example)}</div>
+                                <div class="command-description">${escapeHtml(cmd.description)}</div>
+                            </div>`;
+                        });
+                        
+                        content += `</div></div>`;
+                    } else {
+                        content += `<div class="command-category">
+                            <h4>No Redis Commands Found</h4>
+                            <div class="command-list">
+                                <div class="command-item">
+                                    <div class="command-example">No Redis commands available</div>
+                                    <div class="command-description">Try adding Redis commands to the system</div>
+                                </div>
+                            </div>
+                        </div>`;
+                    }
+                    
+                    addBotMessage({
+                        message: content,
+                        timestamp: new Date().toISOString()
+                    });
+                })
+                .catch(error => {
+                    addErrorMessage('Error loading Redis commands: ' + error.message);
+                });
+        }
+
+        function showTyping() {
+            typingIndicator.style.display = 'flex';
+            scrollToBottom();
+        }
+
+        function hideTyping() {
+            typingIndicator.style.display = 'none';
+        }
+
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function loadExamples() {
+            fetch('/api/help')
+                .then(response => response.json())
+                .then(data => {
+                    const examplesGrid = document.getElementById('examples-grid');
+                    examplesGrid.innerHTML = data.examples.map(example => 
+                        `<div class="example-item" onclick="useExample('${example}')">${escapeHtml(example)}</div>`
+                    ).join('');
+                })
+                .catch(error => console.error('Error loading examples:', error));
+        }
+
+        function useExample(example) {
+            messageInput.value = example;
+            messageInput.focus();
+        }
+
+        function clearHistory() {
+            fetch('/api/clear_history', { method: 'POST' })
+                .then(() => {
+                    // Remove all messages from chat history
+                    chatHistory.innerHTML = '';
+                })
+                .catch(error => console.error('Error clearing history:', error));
+        }
+
+        function toggleHelp() {
+            const helpPanel = document.getElementById('help-panel');
+            const toggleButton = document.getElementById('toggle-help-btn');
+            const floatingHelpBtn = document.getElementById('floating-help-btn');
+            
+            helpVisible = !helpVisible;
+            helpPanel.style.display = helpVisible ? 'block' : 'none';
+            
+            // Update button text and style
+            if (toggleButton) {
+                toggleButton.textContent = helpVisible ? 'Hide Help' : 'Show Help';
+                if (helpVisible) {
+                    toggleButton.className = 'btn btn-primary';
+                } else {
+                    toggleButton.className = 'btn btn-success';
+                    // Make sure the button is visible and prominent when help is hidden
+                    toggleButton.style.display = 'inline-block';
+                    toggleButton.style.marginTop = '10px';
+                }
+            }
+            
+            // Show/hide floating help button
+            if (floatingHelpBtn) {
+                floatingHelpBtn.style.display = helpVisible ? 'none' : 'block';
+            }
+            
+            // Show a brief message when help is hidden
+            if (!helpVisible) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message bot';
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">💡</div>
+                    <div class="message-content">
+                        <div class="message-text">Help panel hidden. Click the <strong>"Show Help"</strong> button above to display it again.</div>
+                        <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+                `;
+                chatHistory.appendChild(messageDiv);
+                scrollToBottom();
+            }
+        }
+
+        // Add event listeners for dynamic buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('execute-btn')) {
+                const command = e.target.getAttribute('data-command');
+                const userInput = e.target.getAttribute('data-user-input');
+                executeCommand(command, userInput);
+            } else if (e.target.classList.contains('skip-btn')) {
+                skipExecution();
+            } else if (e.target.classList.contains('show-commands-btn')) {
+                showAllCommands();
+            } else if (e.target.classList.contains('show-redis-commands-btn')) {
+                showRedisCommands();
+            }
+        });
+
+        // Focus input on load
+        messageInput.focus();
+    </script>
+</body>
+</html> 
